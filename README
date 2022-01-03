@@ -1,0 +1,13 @@
+nanohtml2text
+=============
+
+0-dependency library to convert HTML to text; an alternative to https://crates.io/crates/html2text that doesn't use a full browser-grade HTML parser
+
+Based on https://github.com/k3a/html2text -- basically a line-for-line rewreite
+
+Useful for displaying HTML emails
+
+Usage:
+
+let s = "<b>Hacker mode</b>"
+html2text(s);
