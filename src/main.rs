@@ -1,9 +1,24 @@
 // almost a line for line rewrite of https://github.com/k3a/html2text/blob/master/html2text.go
+//
+mod entity;
 fn main() {
     println!("Hello, world!");
 }
 
-fn parse_html_entity(ent_name: &str) {}
+// stolen from https://github.com/veddan/rust-htmlescape/blob/master/src/decode.rs
+fn decode_named_entity(entity: &str) -> Option<char> {
+    match entity::ENTITIES.binary_search_by(|&(ent, _)| ent.cmp(entity)) {
+        Err(..) => None,
+        Ok(idx) => {
+            let (_, c) = entity::ENTITIES[idx];
+            Some(c)
+        }
+    }
+}
+
+fn parse_html_entity(ent_name: &str) {
+    // entities.binary_search_by(k
+}
 
 fn write_space(s: &mut String) {
     let b = s.as_bytes();
