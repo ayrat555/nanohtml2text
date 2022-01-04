@@ -16,8 +16,29 @@ fn decode_named_entity(entity: &str) -> Option<char> {
     }
 }
 
-fn parse_html_entity(ent_name: &str) {
-    // entities.binary_search_by(k
+fn parse_html_entity(ent_name: &str) -> Option<char> {
+    let d = decode_named_entity(ent_name);
+    if d.is_some() {
+        return d;
+    }
+    // rewriting without regex
+    let lower = ent_name.to_lowercase();
+    if lower.starts_with("#") && lower.len() > 1 {
+        let parsed;
+        if lower.as_bytes()[1] == b'x' && lower.len() > 2 {
+            parsed = lower[2..].parse().ok();
+        } else {
+            parsed = lower[1..].parse().ok();
+        }
+        return parsed.and_then(|n| {
+            if n == 9 || n == 10 || n == 13 || n > 32 {
+                return char::from_u32(n);
+            }
+            return None;
+        });
+    }
+
+    None
 }
 
 fn write_space(s: &mut String) {
@@ -64,15 +85,31 @@ fn html2text(html: &str) -> String {
                 }
             }
             if is_ent {
-                // parseHTMLentity TODO
+                if let Some(ent) = parse_html_entity(&ent_name) {
+                    out_buf.push(ent);
+                    in_ent = true;
+                }
             }
         } else if r == '<' {
             // start of tag
             tag_start = i + 1;
             should_output = false;
             continue;
-        } else if r == '>' { // end of tag
-             // TODO
+        } else if r == '>' {
+            // end of tag
+            should_output = true;
+            let tag = &html[tag_start..i];
+            let tag_name_lower = tag.to_lowercase();
+            // match a few special tags
+            if tag_name_lower == "/ul" {
+                out_buf.push('\n');
+            } else if tag_name_lower == "li" || tag_name_lower == "li/" {
+                out_buf.push('\n');
+            }
+            // else if {
+            // headers re
+            // } else if //headers regex
+            // TODO
         }
 
         if should_output && bad_tag_stack_depth == 0 && !in_ent {
