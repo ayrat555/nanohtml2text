@@ -5,6 +5,7 @@ fn main() {
     println!("Hello, world!");
 }
 
+const LBR: &str = "\r\n";
 // stolen from https://github.com/veddan/rust-htmlescape/blob/master/src/decode.rs
 fn decode_named_entity(entity: &str) -> Option<char> {
     match entity::ENTITIES.binary_search_by(|&(ent, _)| ent.cmp(entity)) {
@@ -14,6 +15,30 @@ fn decode_named_entity(entity: &str) -> Option<char> {
             Some(c)
         }
     }
+}
+
+const BAD_TAGS: [&str; 4] = ["head", "script", "style", "a"];
+
+fn is_bad_tag(t: &str) -> bool {
+    let t = t.trim_end();
+    if BAD_TAGS.contains(&t) {
+        return true;
+    }
+    false
+}
+
+// replacing regex
+fn is_header(h: &str) -> bool {
+    let mut b = h.as_bytes();
+    if b.len() == 3 && b[0] == b'/' {
+        b = &b[1..]
+    }
+    if b.len() == 2 && b[0] == b'h' {
+        if b'1' <= b[1] && b[1] <= b'6' {
+            return true;
+        }
+    }
+    false
 }
 
 fn parse_html_entity(ent_name: &str) -> Option<char> {
@@ -100,16 +125,34 @@ fn html2text(html: &str) -> String {
             should_output = true;
             let tag = &html[tag_start..i];
             let tag_name_lower = tag.to_lowercase();
-            // match a few special tags
             if tag_name_lower == "/ul" {
-                out_buf.push('\n');
+                out_buf.push_str(LBR);
             } else if tag_name_lower == "li" || tag_name_lower == "li/" {
-                out_buf.push('\n');
+                out_buf.push_str(LBR);
+            } else if is_header(&tag_name_lower) {
+                if can_print_new_line {
+                    out_buf.push_str(LBR);
+                    out_buf.push_str(LBR);
+                }
+                can_print_new_line = false;
+            } else if tag_name_lower == "br" || tag_name_lower == "br/" {
+                out_buf.push_str(LBR);
+            } else if tag_name_lower == "p" || tag_name_lower == "/p" {
+                if can_print_new_line {
+                    out_buf.push_str(LBR);
+                    out_buf.push_str(LBR);
+                }
+                can_print_new_line = false;
+            } else if is_bad_tag(&tag_name_lower) {
+                bad_tag_stack_depth += 1;
+                // TODO parse link
+            } else if tag_name_lower.len() > 0
+                && tag_name_lower.starts_with("/")
+                && is_bad_tag(&tag_name_lower)
+            {
+                bad_tag_stack_depth -= 1;
             }
-            // else if {
-            // headers re
-            // } else if //headers regex
-            // TODO
+            continue;
         }
 
         if should_output && bad_tag_stack_depth == 0 && !in_ent {
@@ -118,4 +161,101 @@ fn html2text(html: &str) -> String {
         }
     }
     out_buf
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const cases: &[(&str, &str)] = &[
+        ("blah", "blah"),
+        // inlines
+        ("strong <strong>text</strong>", "strong text"),
+        ("some <div id=\"a\" class=\"b\">div</div>", "some div"),
+        // lines breaks and spaces
+        ("should    ignore more spaces", "should ignore more spaces"),
+        ("should \nignore \r\nnew lines", "should ignore new lines"),
+        ("a\nb\nc", "a b c"),
+        ("two<br>line<br/>breaks", "two\r\nline\r\nbreaks"),
+        ("<p>two</p><p>paragraphs</p>", "two\r\n\r\nparagraphs"),
+        // Headers
+        ("<h1>First</h1>main text", "First\r\n\r\nmain text"),
+        (
+            "First<h2>Second</h2>next section",
+            "First\r\n\r\nSecond\r\n\r\nnext section",
+        ),
+        ("<h2>Second</h2>next section", "Second\r\n\r\nnext section"),
+        (
+            "Second<h3>Third</h3>next section",
+            "Second\r\n\r\nThird\r\n\r\nnext section",
+        ),
+        ("<h3>Third</h3>next section", "Third\r\n\r\nnext section"),
+        (
+            "Third<h4>Fourth</h4>next section",
+            "Third\r\n\r\nFourth\r\n\r\nnext section",
+        ),
+        ("<h4>Fourth</h4>next section", "Fourth\r\n\r\nnext section"),
+        (
+            "Fourth<h5>Fifth</h5>next section",
+            "Fourth\r\n\r\nFifth\r\n\r\nnext section",
+        ),
+        ("<h5>Fifth</h5>next section", "Fifth\r\n\r\nnext section"),
+        (
+            "Fifth<h6>Sixth</h6>next section",
+            "Fifth\r\n\r\nSixth\r\n\r\nnext section",
+        ),
+        ("<h6>Sixth</h6>next section", "Sixth\r\n\r\nnext section"),
+        ("<h7>Not Header</h7>next section", "Not Headernext section"),
+        // html entitites
+        ("two&nbsp;&nbsp;spaces", "two  spaces"),
+        ("&copy; 2017 K3A", "© 2017 K3A"),
+        ("&lt;printtag&gt;", "<printtag>"),
+        (
+            "would you pay in &cent;, &pound;, &yen; or &euro;?",
+            "would you pay in ¢, £, ¥ or €?",
+        ),
+        (
+            "Tom & Jerry is not an entity",
+            "Tom & Jerry is not an entity",
+        ),
+        ("this &neither; as you see", "this &neither; as you see"),
+        (
+            "list of items<ul><li>One</li><li>Two</li><li>Three</li></ul>",
+            "list of items\r\nOne\r\nTwo\r\nThree\r\n",
+        ),
+        ("fish &amp; chips", "fish & chips"),
+        (
+            "&quot;I'm sorry, Dave. I'm afraid I can't do that.&quot; – HAL, 2001: A Space Odyssey",
+            "\"I'm sorry, Dave. I'm afraid I can't do that.\" – HAL, 2001: A Space Odyssey",
+        ),
+        ("Google &reg;", "Google ®"),
+        (
+            "&#8268; decimal and hex entities supported &#x204D;",
+            "⁌ decimal and hex entities supported ⁍",
+        ),
+        // Large entity
+        ("&abcdefghij;", "&abcdefghij;"),
+        // Numeric HTML entities
+        (
+            "&#39;single quotes&#39; and &#52765;",
+            "'single quotes' and 츝",
+        ),
+        // full thml structure
+        ("", ""),
+        ("<html><head><title>Good</title></head><body>x</body>", "x"),
+        (
+            "we are not <script type=\"javascript\"></script>interested in scripts",
+            "we are not interested in scripts",
+        ),
+        // custom html tags
+        ("<aa>hello</aa>", "hello"),
+        ("<aa >hello</aa>", "hello"),
+        ("<aa x=\"1\">hello</aa>", "hello"),
+    ];
+
+    #[test]
+    fn test_all() {
+        for case in cases {
+            assert_eq!(&html2text(case.0), case.1);
+        }
+    }
 }
