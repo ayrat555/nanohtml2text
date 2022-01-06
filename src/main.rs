@@ -1,5 +1,5 @@
 use nanohtml2text::html2text;
-use std::io::{self, Read};
+use std::io::Read;
 
 fn main() {
     let mut buffer = String::new();
