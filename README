@@ -7,12 +7,10 @@ Based on https://github.com/k3a/html2text -- basically a line-for-line rewreite
 
 Primarily useful for displaying HTML emails. YMMV depending on the structure of the HTML you're trying to convert.
 
-Usage:
+This library has one function, html2text, which takes a an html &str and returns a plain text String
 
-use nanohtml2text::html2text;
-
-let s = "<b>Hacker mode</b>"
-assert_eq!(&html2text(s), "Hacker mode")
+use the crate:
+https://crates.io/crates/nanohtml2text
 
 contributing
 ------------
