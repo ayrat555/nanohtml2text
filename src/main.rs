@@ -214,7 +214,7 @@ fn html2text(html: &str) -> String {
                 }
             } else if tag_name_lower.len() > 0
                 && tag_name_lower.starts_with("/")
-                && is_bad_tag(&tag_name_lower)
+                && is_bad_tag(&tag_name_lower[1..])
             {
                 bad_tag_stack_depth -= 1;
             }
@@ -252,7 +252,7 @@ mod tests {
             "click <a href=\"http://bit.ly/2n4wXRs\">news</a>",
             "click http://bit.ly/2n4wXRs",
         ),
-        // ("<a rel=\"mw:WikiLink\" href=\"/wiki/yet#English\" title=\"yet\">yet</a>, <a rel=\"mw:WikiLink\" href=\"/wiki/not_yet#English\" title=\"not yet\">not yet</a>", "/wiki/yet#English, /wiki/not_yet#English"),
+        ("<a rel=\"mw:WikiLink\" href=\"/wiki/yet#English\" title=\"yet\">yet</a>, <a rel=\"mw:WikiLink\" href=\"/wiki/not_yet#English\" title=\"not yet\">not yet</a>", "/wiki/yet#English, /wiki/not_yet#English"),
 
         // inlines
         ("strong <strong>text</strong>", "strong text"),
