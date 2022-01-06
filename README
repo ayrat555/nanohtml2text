@@ -9,5 +9,7 @@ Useful for displaying HTML emails
 
 Usage:
 
+use nanohtml2text::html2text;
+
 let s = "<b>Hacker mode</b>"
-html2text(s);
+assert_eq!(&html2text(s), "Hacker mode")
