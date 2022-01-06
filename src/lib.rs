@@ -23,12 +23,12 @@ fn parse_link(l: &str) -> Option<&str> {
         if s.len() > 1 {
             if s[1] != "" {
                 if s[1].as_bytes()[0] == b'\'' {
-                    let end = s[1][1..].chars().position(|c| c == '\'');
+                    let end = s[1][1..].bytes().position(|c| c == b'\'');
                     if let Some(p) = end {
                         return Some(&s[1][1..=p]);
                     }
                 } else if s[1].as_bytes()[0] == b'"' {
-                    let end = s[1][1..].chars().position(|c| c == '"');
+                    let end = s[1][1..].bytes().position(|c| c == b'"');
                     if let Some(p) = end {
                         return Some(&s[1][1..=p]);
                     }
@@ -89,7 +89,7 @@ fn parse_html_entity(ent_name: &str) -> Option<char> {
 fn html_entitities_to_text(s: &str) -> String {
     let mut out = String::new();
     let mut in_ent = false;
-    for (i, r) in s.chars().enumerate() {
+    for (i, r) in s.char_indices() {
         if r == ';' && in_ent {
             in_ent = false;
             continue;
