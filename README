@@ -13,3 +13,10 @@ use nanohtml2text::html2text;
 
 let s = "<b>Hacker mode</b>"
 assert_eq!(&html2text(s), "Hacker mode")
+
+contributing
+------------
+
+https://alex.flounder.online/tech/contribute.gmi
+gemini://alex.flounder.online/tech/contribute.gmi
+
