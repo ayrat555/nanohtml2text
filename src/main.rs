@@ -19,8 +19,31 @@ fn decode_named_entity(entity: &str) -> Option<char> {
 
 const BAD_TAGS: [&str; 4] = ["head", "script", "style", "a"];
 
+// awkward
+fn parse_link(l: &str) -> Option<&str> {
+    if l.starts_with("a") {
+        let s: Vec<&str> = l.split("href=").collect();
+        if s.len() > 1 {
+            if s[1] != "" {
+                if s[1].as_bytes()[0] == b'\'' {
+                    let end = s[1][1..].chars().position(|c| c == '\'');
+                    if let Some(p) = end {
+                        return Some(&s[1][1..=p]);
+                    }
+                } else if s[1].as_bytes()[0] == b'"' {
+                    let end = s[1][1..].chars().position(|c| c == '"');
+                    if let Some(p) = end {
+                        return Some(&s[1][1..=p]);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn is_bad_tag(t: &str) -> bool {
-    let t = t.trim_end();
+    let t = t.split_whitespace().next().unwrap();
     if BAD_TAGS.contains(&t) {
         return true;
     }
@@ -64,6 +87,44 @@ fn parse_html_entity(ent_name: &str) -> Option<char> {
     }
 
     None
+}
+
+fn html_entitities_to_text(s: &str) -> String {
+    let mut out = String::new();
+    let mut in_ent = false;
+    for (i, r) in s.chars().enumerate() {
+        if r == ';' && in_ent {
+            in_ent = false;
+            continue;
+        } else if r == '&' {
+            let mut ent_name = String::new();
+            let mut is_ent = false;
+            let mut chars = 0;
+            for er in s[i + 1..].chars() {
+                if er == ';' {
+                    is_ent = true;
+                    break;
+                } else {
+                    ent_name.push(er);
+                }
+                chars += 1;
+                if chars == 10 {
+                    break;
+                }
+            }
+            if is_ent {
+                if let Some(ent) = parse_html_entity(&ent_name) {
+                    out.push(ent);
+                    in_ent = true;
+                    continue;
+                }
+            }
+        }
+        if !in_ent {
+            out.push(r);
+        }
+    }
+    out
 }
 
 fn write_space(s: &mut String) {
@@ -145,7 +206,12 @@ fn html2text(html: &str) -> String {
                 can_print_new_line = false;
             } else if is_bad_tag(&tag_name_lower) {
                 bad_tag_stack_depth += 1;
-                // TODO parse link
+                // parse link
+                if let Some(link) = parse_link(tag) {
+                    if !link.contains("javascript:") {
+                        out_buf.push_str(&html_entitities_to_text(link));
+                    }
+                }
             } else if tag_name_lower.len() > 0
                 && tag_name_lower.starts_with("/")
                 && is_bad_tag(&tag_name_lower)
@@ -168,6 +234,26 @@ mod tests {
     use super::*;
     const cases: &[(&str, &str)] = &[
         ("blah", "blah"),
+        // links
+        ("<div></div>", ""),
+        ("<div>simple text</div>", "simple text"),
+        ("click <a href=\"test\">here</a>", "click test"),
+        ("click <a class=\"x\" href=\"test\">here</a>", "click test"),
+        (
+            "click <a href=\"ents/&apos;x&apos;\">here</a>",
+            "click ents/'x'",
+        ),
+        ("click <a href=\"javascript:void(0)\">here</a>", "click "),
+        (
+            "click <a href=\"test\"><span>here</span> or here</a>",
+            "click test",
+        ),
+        (
+            "click <a href=\"http://bit.ly/2n4wXRs\">news</a>",
+            "click http://bit.ly/2n4wXRs",
+        ),
+        // ("<a rel=\"mw:WikiLink\" href=\"/wiki/yet#English\" title=\"yet\">yet</a>, <a rel=\"mw:WikiLink\" href=\"/wiki/not_yet#English\" title=\"not yet\">not yet</a>", "/wiki/yet#English, /wiki/not_yet#English"),
+
         // inlines
         ("strong <strong>text</strong>", "strong text"),
         ("some <div id=\"a\" class=\"b\">div</div>", "some div"),
