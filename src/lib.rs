@@ -1,9 +1,6 @@
 // almost a line for line rewrite of https://github.com/k3a/html2text/blob/master/html2text.go
 //
 mod entity;
-fn main() {
-    println!("Hello, world!");
-}
 
 const LBR: &str = "\r\n";
 // stolen from https://github.com/veddan/rust-htmlescape/blob/master/src/decode.rs
@@ -209,6 +206,7 @@ pub fn html2text(html: &str) -> String {
                 if let Some(link) = parse_link(tag) {
                     if !link.contains("javascript:") {
                         out_buf.push_str(&html_entitities_to_text(link));
+                        can_print_new_line = true;
                     }
                 }
             } else if tag_name_lower.len() > 0
