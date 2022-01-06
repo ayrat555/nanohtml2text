@@ -5,7 +5,7 @@ nanohtml2text
 
 Based on https://github.com/k3a/html2text -- basically a line-for-line rewreite
 
-Useful for displaying HTML emails
+Primarily useful for displaying HTML emails. YMMV depending on the structure of the HTML you're trying to convert.
 
 Usage:
 
