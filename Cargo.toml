@@ -2,5 +2,10 @@
 name = "nanohtml2text"
 version = "0.1.0"
 edition = "2018"
+readme = "README"
+license = "MIT"
+repository = "https://git.alexwennerberg.com/nanohtml2text"
+keywords = ["html", "text"]
+description = "A zero-dependency library to convert HTML to plain text"
 
 [dependencies]
