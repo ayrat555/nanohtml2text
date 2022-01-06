@@ -74,9 +74,9 @@ fn parse_html_entity(ent_name: &str) -> Option<char> {
     if lower.starts_with("#") && lower.len() > 1 {
         let parsed;
         if lower.as_bytes()[1] == b'x' && lower.len() > 2 {
-            parsed = lower[2..].parse().ok();
+            parsed = u32::from_str_radix(&lower[2..], 16).ok();
         } else {
-            parsed = lower[1..].parse().ok();
+            parsed = u32::from_str_radix(&lower[1..], 10).ok();
         }
         return parsed.and_then(|n| {
             if n == 9 || n == 10 || n == 13 || n > 32 {
