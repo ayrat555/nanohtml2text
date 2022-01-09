@@ -19,8 +19,7 @@ https://crates.io/crates/nanohtml2text
 comes with a command line utility in main.rs to process from stdin if you want
 to test/experiment with it
 
-contributing
+Contributing
 ------------
-
-https://alex.flounder.online/tech/contribute.gmi
-
+git-send-email or git-request-pull to my mailing list:
+https://lists.flounder.online/patches/
