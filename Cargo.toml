@@ -1,8 +1,8 @@
 [package]
 name = "nanohtml2text"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
-readme = "README"
+readme = "README.txt"
 license = "MIT"
 repository = "https://git.alexwennerberg.com/nanohtml2text"
 keywords = ["html", "text"]
