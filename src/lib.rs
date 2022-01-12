@@ -10,9 +10,7 @@ fn decode_named_entity(entity: &str) -> Option<char> {
         .ok()
 }
 
-const BAD_TAGS: [&str; 4] = ["head", "script", "style", "a"];
-
-// awkward
+/// Tries to parse a link and returns the location it leads to.
 fn parse_link(l: &str) -> Option<&str> {
     let href_value = l
         .strip_prefix('a')?
@@ -40,11 +38,11 @@ fn parse_link(l: &str) -> Option<&str> {
 }
 
 fn is_bad_tag(t: &str) -> bool {
-    let t = t.split_whitespace().next().unwrap();
-    if BAD_TAGS.contains(&t) {
-        return true;
-    }
-    false
+    let t = t.trim();
+    matches!(
+        t.split_once(char::is_whitespace).map_or(t, |(t, _)| t),
+        "head" | "script" | "style" | "a"
+    )
 }
 
 // replacing regex
