@@ -3,15 +3,11 @@
 mod entity;
 
 const LBR: &str = "\r\n";
-// stolen from https://github.com/veddan/rust-htmlescape/blob/master/src/decode.rs
 fn decode_named_entity(entity: &str) -> Option<char> {
-    match entity::ENTITIES.binary_search_by(|&(ent, _)| ent.cmp(entity)) {
-        Err(..) => None,
-        Ok(idx) => {
-            let (_, c) = entity::ENTITIES[idx];
-            Some(c)
-        }
-    }
+    entity::ENTITIES
+        .binary_search_by_key(&entity, |t| t.0)
+        .map(|idx| entity::ENTITIES[idx].1)
+        .ok()
 }
 
 const BAD_TAGS: [&str; 4] = ["head", "script", "style", "a"];
