@@ -14,25 +14,29 @@ const BAD_TAGS: [&str; 4] = ["head", "script", "style", "a"];
 
 // awkward
 fn parse_link(l: &str) -> Option<&str> {
-    if l.starts_with("a") {
-        let s: Vec<&str> = l.split("href=").collect();
-        if s.len() > 1 {
-            if s[1] != "" {
-                if s[1].as_bytes()[0] == b'\'' {
-                    let end = s[1][1..].bytes().position(|c| c == b'\'');
-                    if let Some(p) = end {
-                        return Some(&s[1][1..=p]);
-                    }
-                } else if s[1].as_bytes()[0] == b'"' {
-                    let end = s[1][1..].bytes().position(|c| c == b'"');
-                    if let Some(p) = end {
-                        return Some(&s[1][1..=p]);
-                    }
-                }
-            }
+    let href_value = l
+        .strip_prefix('a')?
+        // check for the href and then discard everything before it
+        .split_once("href")?
+        .1
+        // there might be whitespace between 'href' and '='
+        .trim_start()
+        // check for and then discard the equal sign
+        .strip_prefix('=')?
+        // remove whitespace after the equal sign
+        .trim_start();
+
+    // find quoted string
+    match href_value.chars().next()? {
+        start @ '\'' | start @ '"' => {
+            let (end, _) = href_value
+                .char_indices()
+                .skip(1)
+                .find(|(_, c)| *c == start)?;
+            Some(&href_value[1..end])
         }
+        _ => None,
     }
-    None
 }
 
 fn is_bad_tag(t: &str) -> bool {
@@ -45,16 +49,18 @@ fn is_bad_tag(t: &str) -> bool {
 
 // replacing regex
 fn is_header(h: &str) -> bool {
-    let mut b = h.as_bytes();
-    if b.len() == 3 && b[0] == b'/' {
-        b = &b[1..]
-    }
-    if b.len() == 2 && b[0] == b'h' {
-        if b'1' <= b[1] && b[1] <= b'6' {
-            return true;
-        }
-    }
-    false
+    // optionally remove leading slash
+    h.strip_prefix('/')
+        .unwrap_or(h)
+        // remove leading h
+        .strip_prefix('h')
+        // there should only be one more char
+        .filter(|h| h.len() == 1)
+        // if that all worked, take the char
+        .and_then(|h| h.chars().next())
+        // if we have the char, check if its 1 to 6
+        // or false if we dont have the char
+        .map_or(false, |c| matches!(c, '1'..='6'))
 }
 
 fn parse_html_entity(ent_name: &str) -> Option<char> {
@@ -62,61 +68,49 @@ fn parse_html_entity(ent_name: &str) -> Option<char> {
     if d.is_some() {
         return d;
     }
-    // rewriting without regex
-    let lower = ent_name.to_lowercase();
-    if lower.starts_with("#") && lower.len() > 1 {
-        let parsed;
-        if lower.as_bytes()[1] == b'x' && lower.len() > 2 {
-            parsed = u32::from_str_radix(&lower[2..], 16).ok();
-        } else {
-            parsed = u32::from_str_radix(&lower[1..], 10).ok();
-        }
-        return parsed.and_then(|n| {
-            if n == 9 || n == 10 || n == 13 || n > 32 {
-                return char::from_u32(n);
-            }
-            return None;
-        });
-    }
 
-    None
+    let num = ent_name.strip_prefix("#")?;
+    if num.chars().next()? == 'x' {
+        u32::from_str_radix(&num[1..].to_lowercase(), 16)
+    } else {
+        // remaining string may be empty, but that will generate an Err(Empty)
+        u32::from_str_radix(num, 10)
+    }
+    .ok()
+    .filter(|n| !matches!(n, 9 | 10 | 13 | 32))
+    .and_then(|n| char::from_u32(n))
 }
 
 fn html_entitities_to_text(s: &str) -> String {
     let mut out = String::new();
-    let mut in_ent = false;
-    for (i, r) in s.char_indices() {
-        if r == ';' && in_ent {
-            in_ent = false;
-            continue;
-        } else if r == '&' {
-            let mut ent_name = String::new();
-            let mut is_ent = false;
-            let mut chars = 0;
-            for er in s[i + 1..].chars() {
-                if er == ';' {
-                    is_ent = true;
-                    break;
-                } else {
-                    ent_name.push(er);
-                }
-                chars += 1;
-                if chars == 10 {
-                    break;
-                }
-            }
-            if is_ent {
-                if let Some(ent) = parse_html_entity(&ent_name) {
-                    out.push(ent);
-                    in_ent = true;
-                    continue;
-                }
-            }
-        }
-        if !in_ent {
-            out.push(r);
+
+    // except for the first part, every part will have started with an ampersand
+    // thus the start of the remaining parts is a HTML entity
+    let mut parts = s.split('&');
+    /*
+    skip first part. if the string started with an ampersand, the first part
+    will be an empty string
+
+    if the string was empty, the first part will also be an empty string so its
+    safe to unwrap
+    */
+    out.push_str(parts.next().unwrap());
+
+    for part in parts {
+        let end = part
+            // entity can be terminated by semicolon or whitespace
+            .find(|c: char| c.is_whitespace() || c == ';')
+            // entity can also terminated by end of string or start of
+            // another entity
+            .unwrap_or_else(|| part.len());
+        if let Some(entity) = parse_html_entity(&part[..end]) {
+            out.push(entity);
+            out.push_str(&part[end..]);
+        } else {
+            out.push_str(part)
         }
     }
+
     out
 }
 
