@@ -1,5 +1,3 @@
-// almost a line for line rewrite of https://github.com/k3a/html2text/blob/master/html2text.go
-//
 mod entity;
 
 fn decode_named_entity(entity: &str) -> Option<char> {
