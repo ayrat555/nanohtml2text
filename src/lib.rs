@@ -2,63 +2,11 @@
 //
 mod entity;
 
-const LBR: &str = "\r\n";
 fn decode_named_entity(entity: &str) -> Option<char> {
     entity::ENTITIES
         .binary_search_by_key(&entity, |t| t.0)
         .map(|idx| entity::ENTITIES[idx].1)
         .ok()
-}
-
-/// Tries to parse a link and returns the location it leads to.
-fn parse_link(l: &str) -> Option<&str> {
-    let href_value = l
-        .strip_prefix('a')?
-        // check for the href and then discard everything before it
-        .split_once("href")?
-        .1
-        // there might be whitespace between 'href' and '='
-        .trim_start()
-        // check for and then discard the equal sign
-        .strip_prefix('=')?
-        // remove whitespace after the equal sign
-        .trim_start();
-
-    // find quoted string
-    match href_value.chars().next()? {
-        start @ '\'' | start @ '"' => {
-            let (end, _) = href_value
-                .char_indices()
-                .skip(1)
-                .find(|(_, c)| *c == start)?;
-            Some(&href_value[1..end])
-        }
-        _ => None,
-    }
-}
-
-fn is_bad_tag(t: &str) -> bool {
-    let t = t.trim();
-    matches!(
-        t.split_once(char::is_whitespace).map_or(t, |(t, _)| t),
-        "head" | "script" | "style" | "a"
-    )
-}
-
-// replacing regex
-fn is_header(h: &str) -> bool {
-    // optionally remove leading slash
-    h.strip_prefix('/')
-        .unwrap_or(h)
-        // remove leading h
-        .strip_prefix('h')
-        // there should only be one more char
-        .filter(|h| h.len() == 1)
-        // if that all worked, take the char
-        .and_then(|h| h.chars().next())
-        // if we have the char, check if its 1 to 6
-        // or false if we dont have the char
-        .map_or(false, |c| matches!(c, '1'..='6'))
 }
 
 fn parse_html_entity(ent_name: &str) -> Option<char> {
@@ -103,115 +51,143 @@ fn html_entitities_to_text(s: &str) -> String {
             .unwrap_or_else(|| part.len());
         if let Some(entity) = parse_html_entity(&part[..end]) {
             out.push(entity);
-            out.push_str(&part[end..]);
+            // get byte length of the char we did `find` above
+            let skip = &part[end..]
+                .chars()
+                .next()
+                // we know there is another character so its safe to unwrap
+                .unwrap()
+                .len_utf8();
+            out.push_str(&part[end + skip..]);
         } else {
-            out.push_str(part)
+            out.push('&');
+            out.push_str(part);
         }
     }
 
     out
 }
 
-fn write_space(s: &mut String) {
-    let b = s.as_bytes();
-    if b.len() > 0 && b[b.len() - 1] != b' ' {
-        s.push(' ');
+/// Function to parse and handle the individual tags.
+/// Assumes that there was a '<' before the given string
+///
+/// Returns the generated text and the byte length to skip.
+fn handle_tag(s: &str) -> (String, usize) {
+    let (tag, more) = match s.split_once('>') {
+        Some((tag, more)) if !tag.is_empty() => (tag, more),
+        _ => {
+            // was not actually a tag, so reinsert the '<'
+            return (String::from("<"), 0);
+        }
+    };
+
+    let (name, attribs) = if let Some((name, attribs)) = tag.split_once(char::is_whitespace) {
+        (name, Some(attribs))
+    } else {
+        (tag, None)
+    };
+
+    match name.to_lowercase().as_str() {
+        "a" => {
+            let href = attribs
+                .and_then(|attribs| {
+                    Some(
+                        attribs
+                            // check for the href and then discard everything before it
+                            .split_once("href")?
+                            .1
+                            // there might be whitespace between 'href' and '='
+                            .trim_start()
+                            // check for and then discard the equal sign
+                            .strip_prefix('=')?
+                            // remove whitespace after the equal sign
+                            .trim_start(),
+                    )
+                })
+                .and_then(|href_value|
+                    // find quoted string
+                    match href_value.chars().next()? {
+                        start @ '\'' | start @ '"' => {
+                            let (end, _) = href_value
+                                .char_indices()
+                                .skip(1)
+                                .find(|(_, c)| *c == start)?;
+                            Some(href_value[1..end].to_string())
+                        }
+                        _ => None,
+                    })
+                .filter(|href| !href.starts_with("javascript:"))
+                .map(|href| html_entitities_to_text(&href));
+            // only use to_ascii_lowercase here so the byte offsets dont get
+            // messed up from one uppercase symbol becoming two lowercase
+            // symbols or something like that
+            let more = more.to_ascii_lowercase();
+            let end = more
+                .find("</a")
+                .map(|i| i + 3)
+                .and_then(|end_tag| more[end_tag..].find('>').map(|i| end_tag + i + 1))
+                .unwrap_or_else(|| more.len());
+            (href.unwrap_or_default(), tag.len() + 1 + end)
+        }
+        "br" | "br/" | "li" | "/ol" | "/ul" => (String::from("\r\n"), tag.len() + 1),
+        "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "/h1" | "/h2" | "/h3" | "/h4" | "/h5"
+        | "/h6" => (String::from("\r\n\r\n"), tag.len() + 1),
+        name @ "head" | name @ "script" | name @ "style" => {
+            // silence tags
+
+            // only use to_ascii_lowercase here so the byte offsets dont get
+            // messed up from one uppercase symbol becoming two lowercase
+            // symbols or something like that
+            let more = more.to_ascii_lowercase();
+            let end = more
+                .find(&format!("</{}", name))
+                .map(|i| i + 2 + name.len())
+                .and_then(|end_tag| more[end_tag..].find('>').map(|i| i + end_tag + 1))
+                .unwrap_or_else(|| more.len());
+            (String::new(), tag.len() + 1 + end)
+        }
+        "!--" => {
+            // HTML comment
+            (String::new(), s.find("-->").map_or(s.len(), |n| n + 3))
+        }
+        // other/unknown tags are just discarded
+        _ => (String::new(), tag.len() + 1),
     }
 }
-
 pub fn html2text(html: &str) -> String {
-    let in_len = html.len();
-    let mut tag_start = 0;
-    let mut in_ent = false;
-    let mut bad_tag_stack_depth = 0;
-    let mut should_output = true;
-    let mut can_print_new_line = false;
-    let mut out_buf = String::new();
-    for (i, r) in html.char_indices() {
-        if in_len > 0 && i == in_len - 1 {
-            can_print_new_line = false
-        }
-        if r.is_whitespace() {
-            if should_output && bad_tag_stack_depth == 0 && !in_ent {
-                write_space(&mut out_buf);
+    // collapse spaces
+    let html = html.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    let mut out = String::new();
+
+    let mut i = 0;
+    while i < html.len() {
+        match html[i..].find('<') {
+            None => {
+                // no more tags in the input, done
+                out += &html_entitities_to_text(&html[i..]);
+                break;
             }
-            continue;
-        } else if r == ';' && in_ent {
-            in_ent = false;
-            continue;
-        } else if r == '&' && should_output {
-            let mut ent_name = String::new();
-            let mut is_ent = false;
-            let mut chars = 10;
-            for er in html[i + 1..].chars() {
-                if er == ';' {
-                    is_ent = true;
-                    break;
-                } else {
-                    ent_name.push(er);
+            Some(text_segment) => {
+                if text_segment > 0 {
+                    out += &html_entitities_to_text(&html[i..i + text_segment]);
+                    i += text_segment;
                 }
-                chars += 1;
-                if chars == 10 {
-                    break;
-                }
-            }
-            if is_ent {
-                if let Some(ent) = parse_html_entity(&ent_name) {
-                    out_buf.push(ent);
-                    in_ent = true;
-                }
-            }
-        } else if r == '<' {
-            // start of tag
-            tag_start = i + 1;
-            should_output = false;
-            continue;
-        } else if r == '>' {
-            should_output = true;
-            let tag = &html[tag_start..i];
-            let tag_name_lower = tag.to_lowercase();
-            if tag_name_lower == "/ul" {
-                out_buf.push_str(LBR);
-            } else if tag_name_lower == "li" || tag_name_lower == "li/" {
-                out_buf.push_str(LBR);
-            } else if is_header(&tag_name_lower) {
-                if can_print_new_line {
-                    out_buf.push_str(LBR);
-                    out_buf.push_str(LBR);
-                }
-                can_print_new_line = false;
-            } else if tag_name_lower == "br" || tag_name_lower == "br/" {
-                out_buf.push_str(LBR);
-            } else if tag_name_lower == "p" || tag_name_lower == "/p" {
-                if can_print_new_line {
-                    out_buf.push_str(LBR);
-                    out_buf.push_str(LBR);
-                }
-                can_print_new_line = false;
-            } else if is_bad_tag(&tag_name_lower) {
-                bad_tag_stack_depth += 1;
-                // parse link
-                if let Some(link) = parse_link(tag) {
-                    if !link.contains("javascript:") {
-                        out_buf.push_str(&html_entitities_to_text(link));
-                        can_print_new_line = true;
+                i += 1; // skip the '<'
+                let (s, advance) = handle_tag(&html[i..]);
+                if !s.is_empty() {
+                    if out.ends_with("\r\n\r\n") || out.is_empty() {
+                        out += &s.trim_start();
+                    } else {
+                        out += &s;
                     }
                 }
-            } else if tag_name_lower.len() > 0
-                && tag_name_lower.starts_with("/")
-                && is_bad_tag(&tag_name_lower[1..])
-            {
-                bad_tag_stack_depth -= 1;
+                i += advance;
             }
-            continue;
-        }
-
-        if should_output && bad_tag_stack_depth == 0 && !in_ent {
-            can_print_new_line = true;
-            out_buf.push(r);
         }
     }
-    out_buf
+
+    out
 }
 
 #[cfg(test)]
