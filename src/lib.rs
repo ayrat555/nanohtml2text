@@ -154,6 +154,19 @@ fn handle_tag(s: &str) -> (String, usize) {
         _ => (String::new(), tag.len() + 1),
     }
 }
+
+/// Convert some HTML to plain text. Only some simple HTML tags are handled:
+/// - `a` tags are transformed to their href attribute value
+/// - paragraph, linebreak, heading, list, and list item tags insert different
+///   amounts of line breaks.
+/// - HTML comments as well as `head`, `script` and `style` are completely
+///   discarded, including their content
+/// - unknown tags are skipped, but their content is printed
+///
+/// HTML named entities will be replaced with the respecive Unicode code point,
+/// and whitespace will be collapsed as is usual in HTML.
+///
+/// The resulting string will have CRLF line endings.
 pub fn html2text(html: &str) -> String {
     // collapse spaces
     let html = html.split_whitespace().collect::<Vec<_>>().join(" ");
