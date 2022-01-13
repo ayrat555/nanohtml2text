@@ -206,116 +206,140 @@ pub fn html2text(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    const cases: &[(&str, &str)] = &[
-        ("blah", "blah"),
+
+    macro_rules! test {
+        ($name:ident, $from:literal, $to:literal $(,)?) => {
+            #[test]
+            fn $name() {
+                assert_eq!(&html2text($from), $to);
+            }
+        };
+        ($($name:ident: $from:literal to $to:literal,)* $(,)?) => {
+            $(test!{$name, $from, $to})*
+        };
+    }
+
+    test! {
+        plaintext: "blah" to "blah",
+        tag: "<div></div>" to "",
+        tag_contents: "<div>simple text</div>" to "simple text",
         // links
-        ("<div></div>", ""),
-        ("<div>simple text</div>", "simple text"),
-        ("click <a href=\"test\">here</a>", "click test"),
-        ("click <a class=\"x\" href=\"test\">here</a>", "click test"),
-        (
-            "click <a href=\"ents/&apos;x&apos;\">here</a>",
-            "click ents/'x'",
-        ),
-        ("click <a href=\"javascript:void(0)\">here</a>", "click "),
-        (
-            "click <a href=\"test\"><span>here</span> or here</a>",
-            "click test",
-        ),
-        (
-            "click <a href=\"http://bit.ly/2n4wXRs\">news</a>",
-            "click http://bit.ly/2n4wXRs",
-        ),
-        ("<a rel=\"mw:WikiLink\" href=\"/wiki/yet#English\" title=\"yet\">yet</a>, <a rel=\"mw:WikiLink\" href=\"/wiki/not_yet#English\" title=\"not yet\">not yet</a>", "/wiki/yet#English, /wiki/not_yet#English"),
-
+        link:
+            "click <a href=\"test\">here</a>"
+            to "click test",
+        links_ignore_attributes:
+            "click <a class=\"x\" href=\"test\">here</a>"
+            to "click test",
+        link_entities_in_url:
+            "click <a href=\"ents/&apos;x&apos;\">here</a>"
+            to "click ents/'x'",
+        link_javascript:
+            "click <a href=\"javascript:void(0)\">here</a>"
+            to "click ",
+        link_ignore_content_tags:
+            "click <a href=\"test\"><span>here</span> or here</a>"
+            to "click test",
+        link_absolute_url:
+            "click <a href=\"http://bit.ly/2n4wXRs\">news</a>"
+            to "click http://bit.ly/2n4wXRs",
+        link_ignore_attributes_2:
+            "<a rel=\"mw:WikiLink\" href=\"/wiki/yet#English\" title=\"yet\">yet</a>, <a rel=\"mw:WikiLink\" href=\"/wiki/not_yet#English\" title=\"not yet\">not yet</a>"
+            to "/wiki/yet#English, /wiki/not_yet#English",
         // inlines
-        ("strong <strong>text</strong>", "strong text"),
-        ("some <div id=\"a\" class=\"b\">div</div>", "some div"),
+        ignore_inline:
+            "strong <strong>text</strong>"
+            to "strong text",
+        ignore_inline_attributes:
+            "some <div id=\"a\" class=\"b\">div</div>"
+            to "some div",
         // lines breaks and spaces
-        ("should    ignore more spaces", "should ignore more spaces"),
-        ("should \nignore \r\nnew lines", "should ignore new lines"),
-        ("a\nb\nc", "a b c"),
-        ("two<br>line<br/>breaks", "two\r\nline\r\nbreaks"),
-        ("<p>two</p><p>paragraphs</p>", "two\r\n\r\nparagraphs"),
+        collapse_spaces:
+            "should    ignore more spaces" to "should ignore more spaces",
+        collapse_linebreaks:
+            "a\nb\nc" to "a b c",
+        collapse_mixed:
+            "should \nignore \r\nnew lines" to "should ignore new lines",
+        br_tag:
+            "two<br>line<br/>breaks" to "two\r\nline\r\nbreaks",
+        paragraph:
+            "<p>two</p><p>paragraphs</p>" to "two\r\n\r\nparagraphs",
         // Headers
-        ("<h1>First</h1>main text", "First\r\n\r\nmain text"),
-        (
-            "First<h2>Second</h2>next section",
-            "First\r\n\r\nSecond\r\n\r\nnext section",
-        ),
-        ("<h2>Second</h2>next section", "Second\r\n\r\nnext section"),
-        (
-            "Second<h3>Third</h3>next section",
-            "Second\r\n\r\nThird\r\n\r\nnext section",
-        ),
-        ("<h3>Third</h3>next section", "Third\r\n\r\nnext section"),
-        (
-            "Third<h4>Fourth</h4>next section",
-            "Third\r\n\r\nFourth\r\n\r\nnext section",
-        ),
-        ("<h4>Fourth</h4>next section", "Fourth\r\n\r\nnext section"),
-        (
-            "Fourth<h5>Fifth</h5>next section",
-            "Fourth\r\n\r\nFifth\r\n\r\nnext section",
-        ),
-        ("<h5>Fifth</h5>next section", "Fifth\r\n\r\nnext section"),
-        (
-            "Fifth<h6>Sixth</h6>next section",
-            "Fifth\r\n\r\nSixth\r\n\r\nnext section",
-        ),
-        ("<h6>Sixth</h6>next section", "Sixth\r\n\r\nnext section"),
-        ("<h7>Not Header</h7>next section", "Not Headernext section"),
+        h1:
+            "<h1>First</h1>main text" to "First\r\n\r\nmain text",
+        h2_inline:
+            "First<h2>Second</h2>next section"
+            to "First\r\n\r\nSecond\r\n\r\nnext section",
+        h2:
+            "<h2>Second</h2>next section" to "Second\r\n\r\nnext section",
+        h3_inline:
+            "Second<h3>Third</h3>next section"
+            to "Second\r\n\r\nThird\r\n\r\nnext section",
+        h3:
+            "<h3>Third</h3>next section" to "Third\r\n\r\nnext section",
+        h4_inline:
+            "Third<h4>Fourth</h4>next section"
+            to "Third\r\n\r\nFourth\r\n\r\nnext section",
+        h4:
+            "<h4>Fourth</h4>next section" to "Fourth\r\n\r\nnext section",
+        h5_inline:
+            "Fourth<h5>Fifth</h5>next section"
+            to "Fourth\r\n\r\nFifth\r\n\r\nnext section",
+        h5:
+            "<h5>Fifth</h5>next section" to "Fifth\r\n\r\nnext section",
+        h6_inline:
+            "Fifth<h6>Sixth</h6>next section"
+            to "Fifth\r\n\r\nSixth\r\n\r\nnext section",
+        h6:
+            "<h6>Sixth</h6>next section" to "Sixth\r\n\r\nnext section",
+        no_h7:
+            "<h7>Not Header</h7>next section" to "Not Headernext section",
         // html entitites
-        ("two&nbsp;&nbsp;spaces", "two  spaces"),
-        ("&copy; 2017 K3A", "© 2017 K3A"),
-        ("&lt;printtag&gt;", "<printtag>"),
-        (
-            "would you pay in &cent;, &pound;, &yen; or &euro;?",
-            "would you pay in ¢, £, ¥ or €?",
-        ),
-        (
-            "Tom & Jerry is not an entity",
-            "Tom & Jerry is not an entity",
-        ),
-        ("this &neither; as you see", "this &neither; as you see"),
-        (
-            "list of items<ul><li>One</li><li>Two</li><li>Three</li></ul>",
-            "list of items\r\nOne\r\nTwo\r\nThree\r\n",
-        ),
-        ("fish &amp; chips", "fish & chips"),
-        (
-            "&quot;I'm sorry, Dave. I'm afraid I can't do that.&quot; – HAL, 2001: A Space Odyssey",
-            "\"I'm sorry, Dave. I'm afraid I can't do that.\" – HAL, 2001: A Space Odyssey",
-        ),
-        ("Google &reg;", "Google ®"),
-        (
-            "&#8268; decimal and hex entities supported &#x204D;",
-            "⁌ decimal and hex entities supported ⁍",
-        ),
+        entity_nbsp:
+            "two&nbsp;&nbsp;spaces" to "two  spaces",
+        entity_copy:
+            "&copy; 2017 K3A" to "© 2017 K3A",
+        entity_tag:
+            "&lt;printtag&gt;" to "<printtag>",
+        entity_currencies:
+            "would you pay in &cent;, &pound;, &yen; or &euro;?"
+            to "would you pay in ¢, £, ¥ or €?",
+        ampersand_not_entity:
+            "Tom & Jerry is not an entity" to "Tom & Jerry is not an entity",
+        entity_unknown:
+            "this &neither; as you see" to "this &neither; as you see",
+        entity_amp:
+            "fish &amp; chips" to "fish & chips",
+        unordered_list:
+            "list of items<ul><li>One</li><li>Two</li><li>Three</li></ul>"
+            to "list of items\r\nOne\r\nTwo\r\nThree\r\n",
+        entity_quot:
+            "&quot;I'm sorry, Dave. I'm afraid I can't do that.&quot; – HAL, 2001: A Space Odyssey"
+            to "\"I'm sorry, Dave. I'm afraid I can't do that.\" – HAL, 2001: A Space Odyssey",
+        entity_reg:
+            "Google &reg;" to "Google ®",
         // Large entity
-        ("&abcdefghij;", "&abcdefghij;"),
+        entity_large_unknown:
+            "&abcdefghij;" to "&abcdefghij;",
         // Numeric HTML entities
-        (
-            "&#39;single quotes&#39; and &#52765;",
-            "'single quotes' and 츝",
-        ),
+        entity_numeric:
+            "&#8268; decimal and hex entities supported &#x204D;"
+            to "⁌ decimal and hex entities supported ⁍",
+        entity_numeric_2:
+            "&#39;single quotes&#39; and &#52765;"
+            to "'single quotes' and 츝",
         // full thml structure
-        ("", ""),
-        ("<html><head><title>Good</title></head><body>x</body>", "x"),
-        (
-            "we are not <script type=\"javascript\"></script>interested in scripts",
-            "we are not interested in scripts",
-        ),
+        empty: "" to "",
+        full_html:
+            "<html><head><title>Good</title></head><body>x</body>" to "x",
+        ignore_script:
+            "we are not <script type=\"javascript\"></script>interested in scripts"
+            to "we are not interested in scripts",
         // custom html tags
-        ("<aa>hello</aa>", "hello"),
-        ("<aa >hello</aa>", "hello"),
-        ("<aa x=\"1\">hello</aa>", "hello"),
-    ];
-
-    #[test]
-    fn test_all() {
-        for case in cases {
-            assert_eq!(&html2text(case.0), case.1);
-        }
+        ignore_unknown_tag:
+            "<aa>hello</aa>" to "hello",
+        ignore_unknown_tag_whitespace:
+            "<aa >hello</aa>" to "hello",
+        ignore_unknown_tag_attributes:
+            "<aa x=\"1\">hello</aa>" to "hello",
     }
 }
