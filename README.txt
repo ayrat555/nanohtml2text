@@ -5,7 +5,7 @@ nanohtml2text
 https://crates.io/crates/html2text that doesn't use a full browser-grade HTML
 parser
 
-Based on https://github.com/k3a/html2text -- basically a line-for-line rewreite
+Based on https://github.com/k3a/html2text 
 
 Primarily useful for displaying HTML emails. YMMV depending on the structure of
 the HTML you're trying to convert.
