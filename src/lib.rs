@@ -50,13 +50,14 @@ fn html_entitities_to_text(s: &str) -> String {
         if let Some(entity) = parse_html_entity(&part[..end]) {
             out.push(entity);
             // get byte length of the char we did `find` above
-            let skip = &part[end..]
-                .chars()
-                .next()
-                // we know there is another character so its safe to unwrap
-                .unwrap()
-                .len_utf8();
-            out.push_str(&part[end + skip..]);
+            let real_end = if let Some(next) = &part[end..].chars().next() {
+                end + next.len_utf8()
+            } else {
+                // invalid html entity that doesn't end with `;`
+                end
+            };
+
+            out.push_str(&part[real_end..]);
         } else {
             out.push('&');
             out.push_str(part);
@@ -339,5 +340,6 @@ mod tests {
             "<aa >hello</aa>" to "hello",
         ignore_unknown_tag_attributes:
             "<aa x=\"1\">hello</aa>" to "hello",
+        invalid_html_entity_without_semicolon: "&hellip" to "…",
     }
 }
