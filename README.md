@@ -20,4 +20,4 @@ to test/experiment with it
 
 Contributing
 ------------
-git-send-email or git-request-pull to [my mailing list](https://lists.flounder.online/patches/)
+git-send-email or git-request-pull to [my mailing list](https://lists.sr.ht/~aw/patches)
