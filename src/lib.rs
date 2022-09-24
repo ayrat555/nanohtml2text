@@ -121,12 +121,26 @@ fn handle_tag(s: &str) -> (String, usize) {
             // messed up from one uppercase symbol becoming two lowercase
             // symbols or something like that
             let more = more.to_ascii_lowercase();
-            let end = more
-                .find("</a")
+
+            let end_without_closing = more.find("</a");
+            let content = end_without_closing.map(|i| more[0..i].trim());
+
+            let end = end_without_closing
                 .map(|i| i + 3)
                 .and_then(|end_tag| more[end_tag..].find('>').map(|i| end_tag + i + 1))
                 .unwrap_or_else(|| more.len());
-            (href.unwrap_or_default(), tag.len() + 1 + end)
+
+            let link = match (content, href) {
+                (Some(content_value), Some(href_value)) => {
+                    let cleaned_content_value = html2text(content_value);
+                    format!("{} ({})", cleaned_content_value, href_value)
+                }
+                (None, Some(href_value)) => href_value,
+                (Some(content_value), None) => content_value.to_string(),
+                (None, None) => "".to_string(),
+            };
+
+            (link, tag.len() + 1 + end)
         }
         "br" | "br/" | "li" | "/ol" | "/ul" => (String::from("\r\n"), tag.len() + 1),
         "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "/h1" | "/h2" | "/h3" | "/h4" | "/h5"
@@ -225,25 +239,25 @@ mod tests {
         // links
         link:
             "click <a href=\"test\">here</a>"
-            to "click test",
+            to "click here (test)",
         links_ignore_attributes:
             "click <a class=\"x\" href=\"test\">here</a>"
-            to "click test",
+            to "click here (test)",
         link_entities_in_url:
             "click <a href=\"ents/&apos;x&apos;\">here</a>"
-            to "click ents/'x'",
+            to "click here (ents/'x')",
         link_javascript:
             "click <a href=\"javascript:void(0)\">here</a>"
-            to "click ",
+            to "click here",
         link_ignore_content_tags:
             "click <a href=\"test\"><span>here</span> or here</a>"
-            to "click test",
+            to "click here or here (test)",
         link_absolute_url:
             "click <a href=\"http://bit.ly/2n4wXRs\">news</a>"
-            to "click http://bit.ly/2n4wXRs",
+            to "click news (http://bit.ly/2n4wXRs)",
         link_ignore_attributes_2:
             "<a rel=\"mw:WikiLink\" href=\"/wiki/yet#English\" title=\"yet\">yet</a>, <a rel=\"mw:WikiLink\" href=\"/wiki/not_yet#English\" title=\"not yet\">not yet</a>"
-            to "/wiki/yet#English, /wiki/not_yet#English",
+            to "yet (/wiki/yet#English), not yet (/wiki/not_yet#English)",
         // inlines
         ignore_inline:
             "strong <strong>text</strong>"
