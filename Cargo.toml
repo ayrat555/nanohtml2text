@@ -2,7 +2,7 @@
 name = "nanohtml2text"
 version = "0.1.3"
 edition = "2018"
-readme = "README.txt"
+readme = "README.md"
 license = "MIT"
 repository = "https://git.alexwennerberg.com/nanohtml2text"
 keywords = ["html", "text"]
