@@ -132,8 +132,12 @@ fn handle_tag(s: &str) -> (String, usize) {
 
             let link = match (content, href) {
                 (Some(content_value), Some(href_value)) => {
-                    let cleaned_content_value = html2text(content_value);
-                    format!("{} ({})", cleaned_content_value, href_value)
+                    if content_value == href_value {
+                        href_value
+                    } else {
+                        let cleaned_content_value = html2text(content_value);
+                        format!("{} ({})", cleaned_content_value, href_value)
+                    }
                 }
                 (None, Some(href_value)) => href_value,
                 (Some(content_value), None) => content_value.to_string(),
@@ -240,6 +244,9 @@ mod tests {
         link:
             "click <a href=\"test\">here</a>"
             to "click here (test)",
+        link_href_equal_to_content:
+            "click <a href=\"test\">test</a>"
+            to "click test",
         links_ignore_attributes:
             "click <a class=\"x\" href=\"test\">here</a>"
             to "click here (test)",
